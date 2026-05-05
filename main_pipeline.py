@@ -9,9 +9,13 @@
 import os
 import glob
 import json
-from datetime import datetime
 
-from extractor       import extract_articles_with_images, extract_text_from_scanned_pdf
+from datetime import datetime
+from extractor import (
+    extract_articles_with_images,
+    extract_text_from_scanned_pdf,
+    extract_with_ocr
+)
 from classifier      import classify_and_translate
 from slide_generator import create_article_slide, merge_slides_to_digest
 from config          import INPUT_FOLDER, OUTPUT_FOLDER, SLIDES_FOLDER
@@ -54,24 +58,25 @@ def run_pipeline():
 
     for pdf_path in pdf_files:
 
-        print(f"\n{'─' * 50}")
-        print(f"  Processing: {os.path.basename(pdf_path)}")
-        print(f"{'─' * 50}")
-
-        # STEP 1: Try standard text extraction first
+        # STEP 1: Standard text extraction
         articles = extract_articles_with_images(pdf_path)
         print(f"  Standard extraction: {len(articles)} blocks found")
 
-        # STEP 2: If 0 blocks found, try scanned PDF method
+        # STEP 2: Try scanned PDF method
         if len(articles) == 0:
             print(f"  Trying scanned PDF extraction...")
             articles = extract_text_from_scanned_pdf(pdf_path)
             print(f"  Scanned extraction: {len(articles)} blocks found")
 
-        # STEP 3: If still 0, skip this PDF
+        # STEP 3: Try OCR as last resort
         if len(articles) == 0:
-            print(f"  WARNING: Could not extract text from this PDF.")
-            print(f"  This PDF may be password protected or corrupted.")
+            print(f"  Trying OCR extraction (this takes 1-2 minutes)...")
+            articles = extract_with_ocr(pdf_path)
+            print(f"  OCR extraction: {len(articles)} blocks found")
+
+        # STEP 4: If still 0, skip this PDF
+        if len(articles) == 0:
+            print(f"  SKIPPED: Cannot extract text from this PDF.")
             continue
 
         # ── CLASSIFY EACH ARTICLE ──────────────────────────────

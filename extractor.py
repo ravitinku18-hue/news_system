@@ -166,3 +166,84 @@ def extract_text_from_scanned_pdf(pdf_path):
 
     doc.close()
     return articles
+
+def extract_with_ocr(pdf_path):
+    """
+    Last resort extraction using OCR.
+    Used when PDF has no text layer at all (pure image scan).
+    Requires Tesseract OCR to be installed.
+
+    Handles Telugu, Hindi, and English newspapers.
+    """
+    try:
+        import pytesseract
+        from PIL import Image
+        import io
+        from config import TESSERACT_PATH
+
+        # Tell pytesseract where tesseract is installed
+        pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+
+    except ImportError:
+        print("    pytesseract not installed. Run: pip install pytesseract")
+        return []
+
+    articles = []
+    newspaper_name = os.path.basename(pdf_path).replace('.pdf', '')
+    doc = fitz.open(pdf_path)
+    os.makedirs(SLIDES_FOLDER, exist_ok=True)
+
+    for page_num in range(len(doc)):
+        page = doc[page_num]
+
+        # Render page as high resolution image for OCR
+        zoom_matrix = fitz.Matrix(3.0, 3.0)
+        pix = page.get_pixmap(matrix=zoom_matrix, alpha=False)
+
+        # Save screenshot for the slide
+        screenshot_path = os.path.join(
+            SLIDES_FOLDER,
+            f"page_{newspaper_name}_p{page_num + 1}.png"
+        )
+        pix.save(screenshot_path)
+
+        # Convert pixmap to PIL Image for OCR
+        img_data = pix.tobytes("png")
+        pil_image = Image.open(io.BytesIO(img_data))
+
+        # Run OCR with Telugu + Hindi + English language support
+        # tel = Telugu, hin = Hindi, eng = English
+        try:
+            text = pytesseract.image_to_string(
+                pil_image,
+                lang='tel+hin+eng',
+                config='--psm 3'
+            )
+        except Exception:
+            # If Telugu/Hindi packs not installed, try English only
+            try:
+                text = pytesseract.image_to_string(
+                    pil_image,
+                    lang='eng',
+                    config='--psm 3'
+                )
+            except Exception as e:
+                print(f"    OCR failed on page {page_num + 1}: {e}")
+                continue
+
+        # Skip pages with very little text
+        if len(text.strip()) < MIN_ARTICLE_LENGTH:
+            continue
+
+        article = {
+            "page":       page_num + 1,
+            "text":       text[:2000],
+            "source":     newspaper_name,
+            "image_path": screenshot_path,
+            "page_num":   page_num
+        }
+        articles.append(article)
+        print(f"    OCR extracted page {page_num + 1}: {len(text)} chars")
+
+    doc.close()
+    return articles
