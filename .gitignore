@@ -1,1 +1,15 @@
+# Secret keys — never upload
 .env
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated PDF and image files — too large for GitHub
+slides/
+output_pdfs/
+input_pdfs/
+
+# VS Code settings
+.vscode/
