@@ -1,0 +1,8 @@
+pdfplumber
+PyMuPDF
+Pillow
+reportlab
+flask
+groq
+PyPDF2
+waitress
